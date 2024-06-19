@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>数字雨</title>
+    <style>
+      body,
+      html {
+        width: 100%;
+        height: 100%;
+        box-sizing: border-box;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+
+  <body>
+    <canvas id="canvas"> </canvas>
+  </body>
+
+  <script>
+    const canvasEl = document.getElementById("canvas");
+    const width = window.innerWidth,
+      height = window.innerHeight;
+    canvasEl.width = width;
+    canvasEl.height = height;
+    const ctx = canvasEl.getContext("2d");
+
+    const columnWidth = 20;
+    const columnCount = Math.floor(width / columnWidth);
+    const columnNextIndexs = new Array(columnCount);
+    columnNextIndexs.fill(1);
+
+    function draw() {
+      const fz = 20;
+      ctx.fillStyle = "rgba(255,255,255,.1)";
+      ctx.fillRect(0, 0, width, height);
+      ctx.font = `${fz}px "serif"`;
+      for (let i = 0; i < columnCount; i++) {
+        ctx.fillStyle = `rgba(${randomRgba()})`;
+        const x = i * columnWidth;
+        const y = fz * columnNextIndexs[i];
+        ctx.fillText(randomCode(), x, y);
+        if (y > height && Math.random() > 0.99) columnNextIndexs[i] = 0;
+        else columnNextIndexs[i]++;
+      }
+    }
+
+    setInterval(draw, 20);
+
+    function randomCode() {
+      //创建26个字母数组
+      var arr = [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+        "F",
+        "G",
+        "H",
+        "I",
+        "J",
+        "K",
+        "L",
+        "M",
+        "N",
+        "O",
+        "P",
+        "Q",
+        "R",
+        "S",
+        "T",
+        "U",
+        "V",
+        "W",
+        "X",
+        "Y",
+        "Z",
+      ];
+      const result = arr[Math.floor(Math.random() * 26)];
+      return result.toLowerCase();
+    }
+
+    function randomRgba() {
+      const r = Math.floor(Math.random() * 255);
+      const g = Math.floor(Math.random() * 255);
+      const b = Math.floor(Math.random() * 255);
+      const a = Math.random();
+      return `${r},${g},${b},${a}`;
+    }
+  </script>
+</html>
