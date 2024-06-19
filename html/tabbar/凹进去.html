@@ -14,58 +14,34 @@
         margin: 0 auto;
         height: 100vh;
         background-image: linear-gradient(to right, pink, green);
+        font-size: 12px;
       }
       .tabbar {
+        --item-width: 20vw;
         --current: 0;
-        --width: 750px;
-        --height: 140px;
-        --len: 5;
-        --itemWidth: calc(var(--width) / var(--len));
-        --mask-position-x: calc(var(--current) * var(--itemWidth) - 750px);
+        --height: 15vw;
         position: fixed;
         bottom: 0;
         left: 50%;
         transform: translateX(-50%);
-        width: var(--width);
         height: var(--height);
         display: flex;
         animation: autoPay 5s alternate infinite linear;
       }
-
-      .tabbar .item {
-        width: var(--itemWidth);
+      .tabbar-item {
+        width: var(--item-width);
         height: 100%;
       }
-      .transition {
-        transition: all 0.3s ease-in-out;
-      }
-
-      .bgc {
-        position: absolute;
-        width: 100%;
-        height: 100%;
-        /* 渐变背景 */
-        background-image: linear-gradient(
-          to right,
-          rgba(255, 255, 255, 0.8),
-          #f50202e8
-        );
-      }
-      .mask {
-        mask-image: url("data:image/svg+xml;charset=utf-8;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPCFET0NUWVBFIHN2ZyBQVUJMSUMgIi0vL1czQy8vRFREIFNWRyAxLjEvL0VOIiAiaHR0cDovL3d3dy53My5vcmcvR3JhcGhpY3MvU1ZHLzEuMS9EVEQvc3ZnMTEuZHRkIj4KPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZlcnNpb249IjEuMSIgd2lkdGg9IjE1MDBweCIgaGVpZ2h0PSIyODBweCIgc3R5bGU9InNoYXBlLXJlbmRlcmluZzpnZW9tZXRyaWNQcmVjaXNpb247IHRleHQtcmVuZGVyaW5nOmdlb21ldHJpY1ByZWNpc2lvbjsgaW1hZ2UtcmVuZGVyaW5nOm9wdGltaXplUXVhbGl0eTsgZmlsbC1ydWxlOmV2ZW5vZGQ7IGNsaXAtcnVsZTpldmVub2RkIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayI+CjxnPjxwYXRoIHN0eWxlPSJvcGFjaXR5OjEiIGZpbGw9IiMwMDAwMDAiIGQ9Ik0gLTAuNSwtMC41IEMgMjUwLjUsLTAuNSA1MDEuNSwtMC41IDc1Mi41LC0wLjVDIDc2Ny4yNywxMi40MzU1IDc4MS4yNywyNi4yNjg5IDc5NC41LDQxQyA4MTMuMDc1LDUyLjg2NDcgODMyLjA3NSw1My41MzE0IDg1MS41LDQzQyA4NjYuMDA4LDI4LjMyNTMgODgwLjY3NSwxMy44MjUzIDg5NS41LC0wLjVDIDEwOTYuODMsLTAuNSAxMjk4LjE3LC0wLjUgMTQ5OS41LC0wLjVDIDE0OTkuNSw5Mi44MzMzIDE0OTkuNSwxODYuMTY3IDE0OTkuNSwyNzkuNUMgOTk5LjUsMjc5LjUgNDk5LjUsMjc5LjUgLTAuNSwyNzkuNUMgLTAuNSwxODYuMTY3IC0wLjUsOTIuODMzMyAtMC41LC0wLjUgWiIvPjwvZz4KPC9zdmc+");
-        mask-repeat: no-repeat;
-        mask-size: 1500px 280px;
-        mask-position: var(--mask-position-x) 0;
-      }
-      .active {
+      .tabbar-active {
         position: absolute;
         top: 0;
-        left: calc(var(--current) * var(--itemWidth));
-        width: var(--itemWidth);
+        left: calc(var(--current) * var(--item-width));
+        width: var(--item-width);
         height: var(--height);
+        transition: all 0.3s ease-in-out;
       }
-      .active .round {
-        --roundSize: 60px;
+      .tabbar-active-round {
+        --roundSize: 10vw;
         position: absolute;
         left: 50%;
         transform: translate(-50%, -50%);
@@ -76,38 +52,55 @@
         box-shadow: 3px 8px 20px rgba(0, 0, 0, 0.3);
       }
 
+      .tabbar-mask {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        /* 渐变背景 */
+        background-image: linear-gradient(
+          to right,
+          rgba(255, 255, 255, 0.8),
+          #f50202e8
+        );
+        transition: all 0.3s ease-in-out;
+        --mask-position-x: calc(var(--current) * var(--item-width) - 100vw);
+        mask-image: url("data:image/svg+xml;charset=utf-8;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPCFET0NUWVBFIHN2ZyBQVUJMSUMgIi0vL1czQy8vRFREIFNWRyAxLjEvL0VOIiAiaHR0cDovL3d3dy53My5vcmcvR3JhcGhpY3MvU1ZHLzEuMS9EVEQvc3ZnMTEuZHRkIj4KPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZlcnNpb249IjEuMSIgd2lkdGg9IjE1MDBweCIgaGVpZ2h0PSIyODBweCIgc3R5bGU9InNoYXBlLXJlbmRlcmluZzpnZW9tZXRyaWNQcmVjaXNpb247IHRleHQtcmVuZGVyaW5nOmdlb21ldHJpY1ByZWNpc2lvbjsgaW1hZ2UtcmVuZGVyaW5nOm9wdGltaXplUXVhbGl0eTsgZmlsbC1ydWxlOmV2ZW5vZGQ7IGNsaXAtcnVsZTpldmVub2RkIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayI+CjxnPjxwYXRoIHN0eWxlPSJvcGFjaXR5OjEiIGZpbGw9IiMwMDAwMDAiIGQ9Ik0gLTAuNSwtMC41IEMgMjUwLjUsLTAuNSA1MDEuNSwtMC41IDc1Mi41LC0wLjVDIDc2Ny4yNywxMi40MzU1IDc4MS4yNywyNi4yNjg5IDc5NC41LDQxQyA4MTMuMDc1LDUyLjg2NDcgODMyLjA3NSw1My41MzE0IDg1MS41LDQzQyA4NjYuMDA4LDI4LjMyNTMgODgwLjY3NSwxMy44MjUzIDg5NS41LC0wLjVDIDEwOTYuODMsLTAuNSAxMjk4LjE3LC0wLjUgMTQ5OS41LC0wLjVDIDE0OTkuNSw5Mi44MzMzIDE0OTkuNSwxODYuMTY3IDE0OTkuNSwyNzkuNUMgOTk5LjUsMjc5LjUgNDk5LjUsMjc5LjUgLTAuNSwyNzkuNUMgLTAuNSwxODYuMTY3IC0wLjUsOTIuODMzMyAtMC41LC0wLjUgWiIvPjwvZz4KPC9zdmc+");
+        mask-repeat: no-repeat;
+        mask-size: 200vw 40vw;
+        mask-position: var(--mask-position-x) 0;
+      }
 
-      @keyframes autoPay{
-        0%{
-          --current:0;
+      @keyframes autoPay {
+        0% {
+          --current: 0;
         }
-        25%{
-          --current:1;
+        25% {
+          --current: 1;
         }
-        50%{
-          --current:2;
+        50% {
+          --current: 2;
         }
-        75%{
-          --current:3;
+        75% {
+          --current: 3;
         }
-        100%{
-          --current:4;
+        100% {
+          --current: 4;
         }
-
       }
     </style>
   </head>
   <body>
     <div class="tabbar">
-      <div class="bgc mask transition"></div>
-      <div class="item"></div>
-      <div class="item"></div>
-      <div class="item"></div>
-      <div class="item"></div>
-      <div class="item"></div>
-      <div class="active transition">
-        <div class="round"></div>
+      <div class="tabbar-item"></div>
+      <div class="tabbar-item"></div>
+      <div class="tabbar-item"></div>
+      <div class="tabbar-item"></div>
+      <div class="tabbar-item"></div>
+
+      <div class="tabbar-active">
+        <div class="tabbar-active-round"></div>
       </div>
+      <div class="tabbar-mask"></div>
     </div>
   </body>
 </html>
