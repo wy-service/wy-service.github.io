@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>字母数字验证码</title>
+    <style>
+      * {
+        padding: 0;
+        margin: 0;
+        box-sizing: border-box;
+      }
+      .verification-code {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 30vw;
+        height: 10vw;
+        box-sizing: border-box;
+        border: 1px solid #ddd;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas class="verification-code" id="verification-code"></canvas>
+    <script>
+      const canvas = document.getElementById("verification-code");
+      const ctx = canvas.getContext("2d");
+      const dpr = window.devicePixelRatio;
+      const react = canvas.getBoundingClientRect();
+      const canvas_width = react.width * dpr;
+      const canvas_height = react.height * dpr;
+      canvas.width = canvas_width;
+      canvas.height = canvas_height;
+      const padding_x = px2px(10);
+      const code = "abcdefghijklmnopqrstuvwxyz0123456789";
+      const codeArr = code.split("");
+      const codeLength = 4;
+
+      canvas.addEventListener("click", function () {
+        draw();
+      });
+      canvas.onclick = function () {
+        draw();
+      };
+
+      draw();
+      function draw() {
+        clearCanvas();
+        drawText();
+        drawLine();
+        drawDot();
+      }
+
+      // 清空画布
+      function clearCanvas() {
+        ctx.clearRect(0, 0, canvas_width, canvas_height);
+      }
+
+      function drawText() {
+        const fontSize = canvas_height * 0.6;
+        const itemWidth = (canvas_width - padding_x * 2) / codeLength;
+        const codeResult = [];
+        for (let i = 0; i < codeLength; i++) {
+          const codeItem = codeArr[Math.floor(randomNum(0, code.length - 1))];
+          // 字体宽高
+          const fontSizeObj = getFonSize(codeItem, {
+            fontWeight: "bold",
+            fontFamily: "微软雅黑",
+            fontSize: `${fontSize}px`,
+          });
+          const fontWidth = fontSizeObj.width;
+          const fontHeight = fontSizeObj.height;
+          const x = padding_x + i * itemWidth + (itemWidth / 2 - fontWidth / 2);
+
+          const deg = (randomNum(-5, 5) * Math.PI) / 180; //产生一个随机弧度(-5到5度)
+          ctx.rotate(deg);
+          ctx.fillStyle = randomColor();
+          ctx.font = `bold ${fontSize}px 微软雅黑`;
+          ctx.fillText(codeItem, x, canvas_height / 2 + canvas_height / 4); //（文本左下角开始画）
+          ctx.rotate(-deg);
+        }
+      }
+      function drawLine() {
+        // 干扰线
+        for (var i = 0; i <= 5; i++) {
+          //验证码上显示线条
+          ctx.strokeStyle = randomColor();
+          ctx.beginPath();
+          ctx.moveTo(
+            Math.random() * canvas_width,
+            Math.random() * canvas_height
+          );
+          ctx.lineTo(
+            Math.random() * canvas_width,
+            Math.random() * canvas_height
+          );
+          ctx.stroke();
+        }
+      }
+
+      function drawDot() {
+        // 干扰点
+        for (var i = 0; i <= 30; i++) {
+          //验证码上显示小点
+          ctx.strokeStyle = randomColor();
+          ctx.beginPath();
+          var x = Math.random() * canvas_width;
+          var y = Math.random() * canvas_height;
+          ctx.moveTo(x, y);
+          ctx.lineTo(x + 1, y + 1);
+          ctx.stroke();
+        }
+      }
+
+      //   随机数
+      function randomNum(min, max) {
+        return Math.random() * (max - min) + min;
+      }
+      // 获取文字宽高
+      function getFonSize(text, style) {
+        const span = document.createElement("span");
+        for (let key in style) {
+          span.style[key] = style[key];
+        }
+        span.innerText = text;
+        const block = document.createElement("div");
+        block.style.display = "inline-block";
+        block.style.position = "fixed";
+        block.style.left = "-9999px";
+        block.appendChild(span);
+        document.body.appendChild(block);
+        const { height, width } = span.getBoundingClientRect();
+        block.remove();
+        return { height, width };
+      }
+
+      //得到随机的颜色值
+      function randomColor() {
+        const r = Math.floor(Math.random() * 256);
+        const g = Math.floor(Math.random() * 256);
+        const b = Math.floor(Math.random() * 256);
+        return "rgb(" + r + "," + g + "," + b + ")";
+      }
+      function px2px(px) {
+        return (window.innerWidth / 750) * px;
+      }
+    </script>
+  </body>
+</html>
