@@ -65,6 +65,7 @@
         const codeResult = [];
         for (let i = 0; i < codeLength; i++) {
           const codeItem = codeArr[Math.floor(randomNum(0, code.length - 1))];
+          codeResult.push(codeItem);
           // 字体宽高
           const fontSizeObj = getFonSize(codeItem, {
             fontWeight: "bold",
@@ -82,6 +83,7 @@
           ctx.fillText(codeItem, x, canvas_height / 2 + canvas_height / 4); //（文本左下角开始画）
           ctx.rotate(-deg);
         }
+        return codeResult
       }
       function drawLine() {
         // 干扰线
