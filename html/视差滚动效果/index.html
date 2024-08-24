@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>视差滚动效果</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+      }
+      .section {
+        position: relative;
+        height: 100vh;
+        box-sizing: border-box;
+        background-repeat: no-repeat;
+        background-size: 100% auto;
+      }
+      .section h1 {
+        position: relative;
+        font-size: 5vw;
+        text-align: center;
+        line-height: 100vh;
+        color: #fff;
+        text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.5);
+        z-index: 9;
+      }
+
+      .section:nth-child(1) {
+        /* background-image: url("https://picsum.photos/1920/3840/?image=44"); */
+        background: linear-gradient(0deg,rgba(69, 2, 83, 0.645) 33.33%,rgb(142, 193, 148) 60%,red);
+      }
+      .section:nth-child(2) {
+        background: skyblue linear-gradient(0deg,transparent 33.33%,pink 50%,transparent);
+      }
+      .section:nth-child(3) {
+        background: burlywood linear-gradient(0deg,transparent 33.33%,rgb(106, 3, 20) 50%,transparent);
+      }
+      .section:nth-child(4) {
+        background: brown linear-gradient(0deg,transparent 33.33%,pink 50%,transparent);
+      }
+    </style>
+  </head>
+  <body>
+    <section class="section">
+      <h1>视差滚动效果</h1>
+    </section>
+    <section class="section">
+      <h1>视差滚动效果</h1>
+      <div class="bgc"></div>
+    </section>
+    <section class="section">
+      <h1>视差滚动效果</h1>
+    </section>
+    <section class="section">
+      <h1>视差滚动效果</h1>
+    </section>
+
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12/dist/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+    <script>
+      gsap.registerPlugin(ScrollTrigger);
+      const sections = document.querySelectorAll(".section");
+      console.log(window.innerHeight);
+
+      sections.forEach((dom) => {
+        gsap.fromTo(
+          dom,
+          {
+            backgroundPositionY: `-${window.innerHeight / 2}px`,
+          },
+          {
+            backgroundPositionY: `${window.innerHeight / 2}px`,
+            ease: "none",
+            scrollTrigger: {
+              trigger: dom,
+              scrub: true, // 和滚动条进行链接
+            },
+          }
+        );
+      });
+    </script>
+  </body>
+</html>
