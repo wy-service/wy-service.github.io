@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D 模型专业预览器 - 自动适配版</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #f7f7f7; font-family: sans-serif; }
+        
+        #upload-container {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+
+        #file-input { display: none; }
+        
+        .upload-btn {
+            background: #007AFF;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.2s;
+            display: inline-block;
+        }
+
+        .upload-btn:hover { background: #0056b3; }
+
+        #loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 20px 40px;
+            border-radius: 10px;
+            display: none;
+            z-index: 2000;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="upload-container">
+        <label for="file-input" class="upload-btn">选择本地 GLB/GLTF 模型</label>
+        <input type="file" id="file-input" accept=".glb,.gltf">
+        <div style="font-size: 11px; color: #666; margin-top: 8px;">支持 .glb 或单文件 .gltf</div>
+    </div>
+
+    <div id="loading">正在加载并适配模型...</div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+                "lil-gui": "https://cdn.jsdelivr.net/npm/lil-gui@0.19/+esm"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+        import GUI from 'lil-gui';
+
+        // --- 1. 配置参数 ---
+        const settings = {
+            bgColor: '#000000',
+            exposure: 0.78,
+            metalness: 0.8,
+            roughness: 0.15,
+            envIntensity: 3.5,
+            topLightIntensity: 2.0,
+            bottomLightIntensity: 3.0,
+            rearLightIntensity: 4.0,
+            rectLightIntensity: 5.0,
+            ambientIntensity: 0.5
+        };
+
+        let carModel = null;
+        let scene, renderer, camera, controls, ambientLight, topLight, bottomLight, rearLight, rectLight;
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(settings.bgColor);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = settings.exposure;
+            renderer.outputColorSpace = THREE.SRGBColorSpace;
+            document.body.appendChild(renderer.domElement);
+
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 10000);
+            camera.position.set(10, 5, 10);
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+
+            const pmremGenerator = new THREE.PMREMGenerator(renderer);
+            scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
+
+            // 灯光初始化
+            ambientLight = new THREE.AmbientLight(0xffffff, settings.ambientIntensity);
+            scene.add(ambientLight);
+            topLight = new THREE.DirectionalLight(0xffffff, settings.topLightIntensity);
+            topLight.position.set(5, 10, 5);
+            scene.add(topLight);
+            bottomLight = new THREE.DirectionalLight(0xffffff, settings.bottomLightIntensity);
+            bottomLight.position.set(0, -10, 0);
+            scene.add(bottomLight);
+            rearLight = new THREE.DirectionalLight(0xffffff, settings.rearLightIntensity);
+            rearLight.position.set(0, 5, -15);
+            scene.add(rearLight);
+            rectLight = new THREE.RectAreaLight(0xffffff, settings.rectLightIntensity, 20, 2);
+            rectLight.position.set(10, 5, 0);
+            rectLight.lookAt(0, 0, 0);
+            scene.add(rectLight);
+
+            createGUI();
+            animate();
+        }
+
+        // --- 核心：自动缩放与相机对齐逻辑 ---
+        function fitCameraToObject(object) {
+            const box = new THREE.Box3().setFromObject(object);
+            const center = box.getCenter(new THREE.Vector3());
+            const size = box.getSize(new THREE.Vector3());
+
+            // 1. 将模型居中
+            object.position.x += (object.position.x - center.x);
+            object.position.y += (object.position.y - center.y);
+            object.position.z += (object.position.z - center.z);
+
+            // 2. 计算合适的相机距离
+            const maxDim = Math.max(size.x, size.y, size.z);
+            const fov = camera.fov * (Math.PI / 180);
+            let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
+            
+            cameraZ *= 1.5; // 留出一点边距
+            camera.position.set(cameraZ, cameraZ / 2, cameraZ);
+            
+            // 3. 更新控制点
+            controls.target.set(0, 0, 0);
+            camera.updateProjectionMatrix();
+            controls.update();
+        }
+
+        function updateScene() {
+            scene.background.set(settings.bgColor);
+            renderer.toneMappingExposure = settings.exposure;
+            ambientLight.intensity = settings.ambientIntensity;
+            topLight.intensity = settings.topLightIntensity;
+            bottomLight.intensity = settings.bottomLightIntensity;
+            rearLight.intensity = settings.rearLightIntensity;
+            rectLight.intensity = settings.rectLightIntensity;
+
+            if (carModel) {
+                carModel.traverse(child => {
+                    if (child.isMesh && child.material) {
+                        const m = child.material;
+                        const name = (child.name + (m.name || "")).toLowerCase();
+                        m.metalness = settings.metalness;
+                        m.roughness = settings.roughness;
+                        m.envMapIntensity = settings.envIntensity;
+                        if (name.includes('tire') || name.includes('wheel')) {
+                            m.metalness = 0.0;
+                            m.roughness = 0.8;
+                        }
+                        m.needsUpdate = true;
+                    }
+                });
+            }
+        }
+
+        // --- 文件加载 ---
+        document.getElementById('file-input').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            const loadingEl = document.getElementById('loading');
+            loadingEl.style.display = 'block';
+
+            reader.onload = function(event) {
+                const loader = new GLTFLoader();
+                if (carModel) scene.remove(carModel);
+
+                loader.parse(event.target.result, '', (gltf) => {
+                    carModel = gltf.scene;
+                    scene.add(carModel);
+                    
+                    // 执行自动适配
+                    fitCameraToObject(carModel);
+                    updateScene();
+                    
+                    loadingEl.style.display = 'none';
+                });
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        function createGUI() {
+            const gui = new GUI({ title: '参数调试' });
+            gui.addColor(settings, 'bgColor').name('背景色').onChange(updateScene);
+            gui.add(settings, 'exposure', 0, 5).name('全局曝光').onChange(updateScene);
+            
+            const fLight = gui.addFolder('灯光系统');
+            fLight.add(settings, 'topLightIntensity', 0, 10).name('上灯光').onChange(updateScene);
+            fLight.add(settings, 'bottomLightIntensity', 0, 10).name('底盘灯').onChange(updateScene);
+            fLight.add(settings, 'rearLightIntensity', 0, 10).name('后灯光').onChange(updateScene);
+            fLight.add(settings, 'rectLightIntensity', 0, 20).name('直线灯').onChange(updateScene);
+            
+            const fMat = gui.addFolder('材质增强');
+            fMat.add(settings, 'metalness', 0, 1).name('金属度').onChange(updateScene);
+            fMat.add(settings, 'roughness', 0, 1).name('粗糙度').onChange(updateScene);
+            fMat.add(settings, 'envIntensity', 0, 10).name('反射强度').onChange(updateScene);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        init();
+    </script>
+</body>
+</html>
