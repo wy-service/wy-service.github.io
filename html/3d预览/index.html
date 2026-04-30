@@ -2,63 +2,43 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D 模型专业预览器 - 自动适配版</title>
+    <title>3D 旗舰级渲染器 V6 - 全环境稳定版</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #f7f7f7; font-family: sans-serif; }
+        body { margin: 0; overflow: hidden; background-color: #050505; font-family: -apple-system, sans-serif; }
         
-        #upload-container {
-            position: fixed;
-            top: 20px;
-            left: 20px;
-            z-index: 1000;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            backdrop-filter: blur(5px);
-            border: 1px solid rgba(0,0,0,0.05);
+        #overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95); display: flex; flex-direction: column;
+            align-items: center; justify-content: center; z-index: 1000;
+            transition: opacity 0.4s; pointer-events: none; opacity: 0;
         }
-
-        #file-input { display: none; }
+        #overlay.active { opacity: 1; pointer-events: all; }
         
-        .upload-btn {
-            background: #007AFF;
-            color: white;
-            padding: 8px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
-            transition: background 0.2s;
-            display: inline-block;
-        }
+        .loader-bar { width: 240px; height: 2px; background: #222; margin-top: 15px; position: relative; }
+        .loader-progress { position: absolute; width: 0%; height: 100%; background: #00ffcc; transition: width 0.2s; box-shadow: 0 0 10px #00ffcc; }
+        #status-text { color: #eee; font-size: 13px; letter-spacing: 2px; }
 
-        .upload-btn:hover { background: #0056b3; }
-
-        #loading {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0,0,0,0.7);
-            color: white;
-            padding: 20px 40px;
-            border-radius: 10px;
-            display: none;
-            z-index: 2000;
+        #ui-layer { position: fixed; top: 20px; left: 20px; z-index: 100; display: flex; flex-direction: column; gap: 12px; }
+        .btn-upload {
+            background: rgba(255,255,255,0.05); color: white; padding: 12px 24px;
+            border-radius: 4px; cursor: pointer; font-size: 13px;
+            border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(15px);
+            transition: all 0.3s; text-align: center;
         }
+        .btn-upload:hover { background: rgba(0,255,204,0.1); border-color: #00ffcc; color: #00ffcc; }
     </style>
 </head>
 <body>
 
-    <div id="upload-container">
-        <label for="file-input" class="upload-btn">选择本地 GLB/GLTF 模型</label>
-        <input type="file" id="file-input" accept=".glb,.gltf">
-        <div style="font-size: 11px; color: #666; margin-top: 8px;">支持 .glb 或单文件 .gltf</div>
+    <div id="overlay">
+        <div id="status-text">正在同步顶级环境贴图...</div>
+        <div class="loader-bar"><div class="loader-progress" id="progress"></div></div>
     </div>
 
-    <div id="loading">正在加载并适配模型...</div>
+    <div id="ui-layer">
+        <label class="btn-upload" for="file-input">📂 载入本地模型 (GLB/GLTF)</label>
+        <input type="file" id="file-input" accept=".glb,.gltf" style="display:none">
+    </div>
 
     <script type="importmap">
         {
@@ -73,178 +53,153 @@
     <script type="module">
         import * as THREE from 'three';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-        import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
         import GUI from 'lil-gui';
 
-        // --- 1. 配置参数 ---
-        const settings = {
-            bgColor: '#000000',
-            exposure: 0.78,
-            metalness: 0.8,
-            roughness: 0.15,
-            envIntensity: 3.5,
-            topLightIntensity: 2.0,
-            bottomLightIntensity: 3.0,
-            rearLightIntensity: 4.0,
-            rectLightIntensity: 5.0,
-            ambientIntensity: 0.5
+        // --- 稳定、高画质的 HDR 源 (精选 1K 快速加载版) ---
+        const envPresets = {
+            '【首选】专业白棚': 'https://threejs.org/examples/textures/equirectangular/venice_sunset_1k.hdr',
+            '【推荐】现代展厅': 'https://threejs.org/examples/textures/equirectangular/royal_esplanade_1k.hdr',
+            '【高反射】城市外滩': 'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/shanghai_bund_1k.hdr',
+            '【自然光】阿尔卑斯': 'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/alps_field_1k.hdr'
         };
 
-        let carModel = null;
-        let scene, renderer, camera, controls, ambientLight, topLight, bottomLight, rearLight, rectLight;
+        const settings = {
+            preset: '【首选】专业白棚',
+            exposure: 1.0,
+            envIntensity: 1.5,
+            showBackground: true,
+            showGrid: true,
+            wireframe: false,
+            autoRotate: false
+        };
 
-        function init() {
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(settings.bgColor);
+        // --- 初始化环境 ---
+        const scene = new THREE.Scene();
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        document.body.appendChild(renderer.domElement);
 
-            renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
-            renderer.setPixelRatio(window.devicePixelRatio);
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.toneMapping = THREE.ACESFilmicToneMapping;
-            renderer.toneMappingExposure = settings.exposure;
-            renderer.outputColorSpace = THREE.SRGBColorSpace;
-            document.body.appendChild(renderer.domElement);
+        const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(10, 5, 10);
 
-            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 10000);
-            camera.position.set(10, 5, 10);
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
 
-            controls = new OrbitControls(camera, renderer.domElement);
-            controls.enableDamping = true;
+        const gridHelper = new THREE.GridHelper(100, 80, 0x333333, 0x222222);
+        scene.add(gridHelper);
 
-            const pmremGenerator = new THREE.PMREMGenerator(renderer);
-            scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
+        let currentModel = null;
+        const rgbeLoader = new RGBELoader();
+        const overlay = document.getElementById('overlay');
+        const progressLine = document.getElementById('progress');
+        const statusText = document.getElementById('status-text');
 
-            // 灯光初始化
-            ambientLight = new THREE.AmbientLight(0xffffff, settings.ambientIntensity);
-            scene.add(ambientLight);
-            topLight = new THREE.DirectionalLight(0xffffff, settings.topLightIntensity);
-            topLight.position.set(5, 10, 5);
-            scene.add(topLight);
-            bottomLight = new THREE.DirectionalLight(0xffffff, settings.bottomLightIntensity);
-            bottomLight.position.set(0, -10, 0);
-            scene.add(bottomLight);
-            rearLight = new THREE.DirectionalLight(0xffffff, settings.rearLightIntensity);
-            rearLight.position.set(0, 5, -15);
-            scene.add(rearLight);
-            rectLight = new THREE.RectAreaLight(0xffffff, settings.rectLightIntensity, 20, 2);
-            rectLight.position.set(10, 5, 0);
-            rectLight.lookAt(0, 0, 0);
-            scene.add(rectLight);
+        // --- 加载环境主函数 ---
+        function loadEnvironment(name) {
+            const url = envPresets[name];
+            overlay.classList.add('active');
+            progressLine.style.width = '0%';
+            statusText.innerText = `正在调配光影: ${name}`;
 
-            createGUI();
-            animate();
+            rgbeLoader.load(url, (texture) => {
+                texture.mapping = THREE.EquirectangularReflectionMapping;
+                scene.environment = texture;
+                updateScene();
+                setTimeout(() => { overlay.classList.remove('active'); }, 500);
+            }, (xhr) => {
+                if (xhr.lengthComputable) {
+                    const p = (xhr.loaded / xhr.total * 100);
+                    progressLine.style.width = p + '%';
+                }
+            }, (err) => {
+                overlay.classList.remove('active');
+                alert('该环境资源加载失败，请尝试切换其他预设。');
+                console.error(err);
+            });
         }
 
-        // --- 核心：自动缩放与相机对齐逻辑 ---
-        function fitCameraToObject(object) {
-            const box = new THREE.Box3().setFromObject(object);
-            const center = box.getCenter(new THREE.Vector3());
-            const size = box.getSize(new THREE.Vector3());
-
-            // 1. 将模型居中
-            object.position.x += (object.position.x - center.x);
-            object.position.y += (object.position.y - center.y);
-            object.position.z += (object.position.z - center.z);
-
-            // 2. 计算合适的相机距离
-            const maxDim = Math.max(size.x, size.y, size.z);
-            const fov = camera.fov * (Math.PI / 180);
-            let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
-            
-            cameraZ *= 1.5; // 留出一点边距
-            camera.position.set(cameraZ, cameraZ / 2, cameraZ);
-            
-            // 3. 更新控制点
-            controls.target.set(0, 0, 0);
-            camera.updateProjectionMatrix();
-            controls.update();
-        }
-
+        // --- 画面全局更新 ---
         function updateScene() {
-            scene.background.set(settings.bgColor);
             renderer.toneMappingExposure = settings.exposure;
-            ambientLight.intensity = settings.ambientIntensity;
-            topLight.intensity = settings.topLightIntensity;
-            bottomLight.intensity = settings.bottomLightIntensity;
-            rearLight.intensity = settings.rearLightIntensity;
-            rectLight.intensity = settings.rectLightIntensity;
+            scene.background = settings.showBackground ? scene.environment : new THREE.Color(0x050505);
+            gridHelper.visible = settings.showGrid;
+            controls.autoRotate = settings.autoRotate;
 
-            if (carModel) {
-                carModel.traverse(child => {
+            if (currentModel) {
+                currentModel.traverse(child => {
                     if (child.isMesh && child.material) {
-                        const m = child.material;
-                        const name = (child.name + (m.name || "")).toLowerCase();
-                        m.metalness = settings.metalness;
-                        m.roughness = settings.roughness;
-                        m.envMapIntensity = settings.envIntensity;
-                        if (name.includes('tire') || name.includes('wheel')) {
-                            m.metalness = 0.0;
-                            m.roughness = 0.8;
-                        }
-                        m.needsUpdate = true;
+                        child.material.envMapIntensity = settings.envIntensity;
+                        child.material.wireframe = settings.wireframe;
                     }
                 });
             }
         }
 
-        // --- 文件加载 ---
-        document.getElementById('file-input').addEventListener('change', function(e) {
+        // --- 模型自适应算法 ---
+        function autoFit(model) {
+            const box = new THREE.Box3().setFromObject(model);
+            const size = box.getSize(new THREE.Vector3());
+            const center = box.getCenter(new THREE.Vector3());
+            model.position.x += (model.position.x - center.x);
+            model.position.y += (model.position.y - center.y);
+            model.position.z += (model.position.z - center.z);
+            const maxDim = Math.max(size.x, size.y, size.z);
+            const cameraDist = maxDim * 1.8; 
+            camera.position.set(cameraDist, cameraDist/1.5, cameraDist);
+            controls.target.set(0, 0, 0);
+            controls.update();
+        }
+
+        // --- 文件载入 ---
+        document.getElementById('file-input').addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
-
-            const reader = new FileReader();
-            const loadingEl = document.getElementById('loading');
-            loadingEl.style.display = 'block';
-
-            reader.onload = function(event) {
-                const loader = new GLTFLoader();
-                if (carModel) scene.remove(carModel);
-
-                loader.parse(event.target.result, '', (gltf) => {
-                    carModel = gltf.scene;
-                    scene.add(carModel);
-                    
-                    // 执行自动适配
-                    fitCameraToObject(carModel);
-                    updateScene();
-                    
-                    loadingEl.style.display = 'none';
-                });
-            };
-            reader.readAsArrayBuffer(file);
+            overlay.classList.add('active');
+            statusText.innerText = '正在载入 3D 几何体...';
+            new GLTFLoader().load(URL.createObjectURL(file), (gltf) => {
+                if (currentModel) scene.remove(currentModel);
+                currentModel = gltf.scene;
+                scene.add(currentModel);
+                autoFit(currentModel);
+                updateScene();
+                overlay.classList.remove('active');
+            });
         });
 
-        function createGUI() {
-            const gui = new GUI({ title: '参数调试' });
-            gui.addColor(settings, 'bgColor').name('背景色').onChange(updateScene);
-            gui.add(settings, 'exposure', 0, 5).name('全局曝光').onChange(updateScene);
-            
-            const fLight = gui.addFolder('灯光系统');
-            fLight.add(settings, 'topLightIntensity', 0, 10).name('上灯光').onChange(updateScene);
-            fLight.add(settings, 'bottomLightIntensity', 0, 10).name('底盘灯').onChange(updateScene);
-            fLight.add(settings, 'rearLightIntensity', 0, 10).name('后灯光').onChange(updateScene);
-            fLight.add(settings, 'rectLightIntensity', 0, 20).name('直线灯').onChange(updateScene);
-            
-            const fMat = gui.addFolder('材质增强');
-            fMat.add(settings, 'metalness', 0, 1).name('金属度').onChange(updateScene);
-            fMat.add(settings, 'roughness', 0, 1).name('粗糙度').onChange(updateScene);
-            fMat.add(settings, 'envIntensity', 0, 10).name('反射强度').onChange(updateScene);
-        }
+        // --- 控制面板 ---
+        const gui = new GUI({ title: '3D 旗舰展示系统 V6' });
+        gui.add(settings, 'preset', Object.keys(envPresets)).name('🌍 环境预设').onChange(loadEnvironment);
+        
+        const fDisplay = gui.addFolder('👁 场景显示控制');
+        fDisplay.add(settings, 'showBackground').name('显示背景实景').onChange(updateScene);
+        fDisplay.add(settings, 'showGrid').name('显示地面网格').onChange(updateScene);
+        fDisplay.add(settings, 'wireframe').name('显示模型线框').onChange(updateScene);
+        
+        const fParams = gui.addFolder('✨ 渲染精调');
+        fParams.add(settings, 'exposure', 0, 3).name('曝光亮度').onChange(updateScene);
+        fParams.add(settings, 'envIntensity', 0, 10).name('反射增强感').onChange(updateScene);
+        fParams.add(settings, 'autoRotate').name('自动旋转展示').onChange(updateScene);
+
+        // 首次加载
+        loadEnvironment(settings.preset);
 
         function animate() {
             requestAnimationFrame(animate);
             controls.update();
             renderer.render(scene, camera);
         }
+        animate();
 
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
-
-        init();
     </script>
 </body>
 </html>
