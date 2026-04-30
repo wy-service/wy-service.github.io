@@ -2,10 +2,11 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>3D 旗舰级渲染器 V6 - 全环境稳定版</title>
+    <title>3D 模型渲染器</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #050505; font-family: -apple-system, sans-serif; }
+        body { margin: 0; overflow: hidden; background-color: #050505; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         
+        /* 加载遮罩层 */
         #overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.95); display: flex; flex-direction: column;
@@ -14,10 +15,20 @@
         }
         #overlay.active { opacity: 1; pointer-events: all; }
         
+        /* 进度条 */
         .loader-bar { width: 240px; height: 2px; background: #222; margin-top: 15px; position: relative; }
         .loader-progress { position: absolute; width: 0%; height: 100%; background: #00ffcc; transition: width 0.2s; box-shadow: 0 0 10px #00ffcc; }
-        #status-text { color: #eee; font-size: 13px; letter-spacing: 2px; }
+        #status-text { color: #eee; font-size: 13px; letter-spacing: 2px; text-align: center; }
 
+        /* 错误提示浮窗 */
+        #error-toast {
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+            background: rgba(255, 50, 50, 0.9); color: white; padding: 12px 25px;
+            border-radius: 4px; font-size: 14px; z-index: 1001; display: none;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+
+        /* UI 操作区 */
         #ui-layer { position: fixed; top: 20px; left: 20px; z-index: 100; display: flex; flex-direction: column; gap: 12px; }
         .btn-upload {
             background: rgba(255,255,255,0.05); color: white; padding: 12px 24px;
@@ -30,16 +41,20 @@
 </head>
 <body>
 
+    <!-- 加载反馈 UI -->
     <div id="overlay">
-        <div id="status-text">正在同步顶级环境贴图...</div>
+        <div id="status-text">调取核心渲染预设...</div>
         <div class="loader-bar"><div class="loader-progress" id="progress"></div></div>
     </div>
+    <div id="error-toast">⚠️ 环境资源加载失败，已自动切换至纯净背景模式</div>
 
+    <!-- 上传按钮 -->
     <div id="ui-layer">
-        <label class="btn-upload" for="file-input">📂 载入本地模型 (GLB/GLTF)</label>
+        <label class="btn-upload" for="file-input">📂 载入本地 3D 模型 (GLB/GLTF)</label>
         <input type="file" id="file-input" accept=".glb,.gltf" style="display:none">
     </div>
 
+    <!-- 核心库引入 -->
     <script type="importmap">
         {
             "imports": {
@@ -57,25 +72,26 @@
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
         import GUI from 'lil-gui';
 
-        // --- 稳定、高画质的 HDR 源 (精选 1K 快速加载版) ---
+        // --- 稳定 HDR 环境源配置 ---[cite: 1]
         const envPresets = {
-            '【首选】专业白棚': 'https://threejs.org/examples/textures/equirectangular/venice_sunset_1k.hdr',
-            '【推荐】现代展厅': 'https://threejs.org/examples/textures/equirectangular/royal_esplanade_1k.hdr',
-            '【高反射】城市外滩': 'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/shanghai_bund_1k.hdr',
-            '【自然光】阿尔卑斯': 'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/alps_field_1k.hdr'
+            '影棚：专业高光': 'https://threejs.org/examples/textures/equirectangular/venice_sunset_1k.hdr',
+            '展厅：自然柔光': 'https://threejs.org/examples/textures/equirectangular/royal_esplanade_1k.hdr',
+            '都市：外滩夜景': 'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/shanghai_bund_1k.hdr',
+            '旷野：阿尔卑斯': 'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/alps_field_1k.hdr'
         };
 
         const settings = {
-            preset: '【首选】专业白棚',
+            preset: '影棚：专业高光',
             exposure: 1.0,
-            envIntensity: 1.5,
-            showBackground: true,
-            showGrid: true,
+            envIntensity: 2.0,
+            showScene: true,      // 默认开启场景[cite: 1]
+            bgColor: '#050505',   // 关闭场景后的背景色[cite: 1]
+            showGrid: false,      // 默认关闭地面线
             wireframe: false,
             autoRotate: false
         };
 
-        // --- 初始化环境 ---
+        // --- 初始化三维引擎 ---
         const scene = new THREE.Scene();
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -85,12 +101,14 @@
         document.body.appendChild(renderer.domElement);
 
         const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(10, 5, 10);
+        camera.position.set(8, 4, 8);
 
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
 
+        // 地面网格
         const gridHelper = new THREE.GridHelper(100, 80, 0x333333, 0x222222);
+        gridHelper.visible = settings.showGrid;
         scene.add(gridHelper);
 
         let currentModel = null;
@@ -98,18 +116,27 @@
         const overlay = document.getElementById('overlay');
         const progressLine = document.getElementById('progress');
         const statusText = document.getElementById('status-text');
+        const errorToast = document.getElementById('error-toast');
 
-        // --- 加载环境主函数 ---
+        // --- 环境加载核心逻辑 ---[cite: 1]
         function loadEnvironment(name) {
             const url = envPresets[name];
+            
+            // 切换时逻辑：尝试恢复场景显示[cite: 1]
+            settings.showScene = true; 
+            updateScene();
+            
             overlay.classList.add('active');
+            errorToast.style.display = 'none';
             progressLine.style.width = '0%';
-            statusText.innerText = `正在调配光影: ${name}`;
+            statusText.innerText = `正在切换光影预设: ${name}`;
 
             rgbeLoader.load(url, (texture) => {
                 texture.mapping = THREE.EquirectangularReflectionMapping;
-                scene.environment = texture;
-                updateScene();
+                scene.environment = texture; // 反射始终存在
+                
+                updateScene(); // 确保渲染同步
+                
                 setTimeout(() => { overlay.classList.remove('active'); }, 500);
             }, (xhr) => {
                 if (xhr.lengthComputable) {
@@ -117,16 +144,35 @@
                     progressLine.style.width = p + '%';
                 }
             }, (err) => {
+                // 加载失败逻辑[cite: 1]
+                console.error("Environment load failed:", err);
                 overlay.classList.remove('active');
-                alert('该环境资源加载失败，请尝试切换其他预设。');
-                console.error(err);
+                
+                settings.showScene = false; // 失败才强制关闭
+                updateScene();
+                
+                // 显示错误提示
+                errorToast.style.display = 'block';
+                setTimeout(() => { errorToast.style.display = 'none'; }, 4000);
+                
+                // 强制同步 GUI 控制器
+                gui.controllers.forEach(c => {
+                    if (c._name === '显示场景实景') c.updateDisplay();
+                });
             });
         }
 
-        // --- 画面全局更新 ---
+        // --- 全局画面渲染更新 ---[cite: 1]
         function updateScene() {
             renderer.toneMappingExposure = settings.exposure;
-            scene.background = settings.showBackground ? scene.environment : new THREE.Color(0x050505);
+            
+            // 背景逻辑：实景 vs 纯色[cite: 1]
+            if (settings.showScene && scene.environment) {
+                scene.background = scene.environment;
+            } else {
+                scene.background = new THREE.Color(settings.bgColor);
+            }
+
             gridHelper.visible = settings.showGrid;
             controls.autoRotate = settings.autoRotate;
 
@@ -140,27 +186,24 @@
             }
         }
 
-        // --- 模型自适应算法 ---
+        // 模型自动适配视角
         function autoFit(model) {
             const box = new THREE.Box3().setFromObject(model);
             const size = box.getSize(new THREE.Vector3());
             const center = box.getCenter(new THREE.Vector3());
-            model.position.x += (model.position.x - center.x);
-            model.position.y += (model.position.y - center.y);
-            model.position.z += (model.position.z - center.z);
+            model.position.sub(center); // 居中
             const maxDim = Math.max(size.x, size.y, size.z);
-            const cameraDist = maxDim * 1.8; 
-            camera.position.set(cameraDist, cameraDist/1.5, cameraDist);
+            camera.position.set(maxDim * 1.5, maxDim * 0.8, maxDim * 1.5);
             controls.target.set(0, 0, 0);
             controls.update();
         }
 
-        // --- 文件载入 ---
+        // 文件载入监听
         document.getElementById('file-input').addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
             overlay.classList.add('active');
-            statusText.innerText = '正在载入 3D 几何体...';
+            statusText.innerText = '正在载入模型几何数据...';
             new GLTFLoader().load(URL.createObjectURL(file), (gltf) => {
                 if (currentModel) scene.remove(currentModel);
                 currentModel = gltf.scene;
@@ -171,23 +214,25 @@
             });
         });
 
-        // --- 控制面板 ---
-        const gui = new GUI({ title: '3D 旗舰展示系统 V6' });
+        // --- 控制面板配置 ---[cite: 1]
+        const gui = new GUI({ title: '旗舰展示系统 V10' });
         gui.add(settings, 'preset', Object.keys(envPresets)).name('🌍 环境预设').onChange(loadEnvironment);
         
         const fDisplay = gui.addFolder('👁 场景显示控制');
-        fDisplay.add(settings, 'showBackground').name('显示背景实景').onChange(updateScene);
+        fDisplay.add(settings, 'showScene').name('显示场景实景').onChange(updateScene).listen();
+        fDisplay.addColor(settings, 'bgColor').name('关闭实景后的背景色').onChange(updateScene);
         fDisplay.add(settings, 'showGrid').name('显示地面网格').onChange(updateScene);
-        fDisplay.add(settings, 'wireframe').name('显示模型线框').onChange(updateScene);
+        fDisplay.add(settings, 'wireframe').name('查看模型线框').onChange(updateScene);
         
         const fParams = gui.addFolder('✨ 渲染精调');
         fParams.add(settings, 'exposure', 0, 3).name('曝光亮度').onChange(updateScene);
-        fParams.add(settings, 'envIntensity', 0, 10).name('反射增强感').onChange(updateScene);
-        fParams.add(settings, 'autoRotate').name('自动旋转展示').onChange(updateScene);
+        fParams.add(settings, 'envIntensity', 0, 10).name('车身反射强度').onChange(updateScene);
+        fParams.add(settings, 'autoRotate').name('开启自动旋转').onChange(updateScene);
 
-        // 首次加载
+        // 初始化加载第一个环境
         loadEnvironment(settings.preset);
 
+        // 渲染循环
         function animate() {
             requestAnimationFrame(animate);
             controls.update();
@@ -195,6 +240,7 @@
         }
         animate();
 
+        // 窗口自适应
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
