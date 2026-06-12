@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>流体传送带</title>
+    <style>
+        :root {
+            --bg-color: #0d0f12;
+            --panel-bg: rgba(20, 24, 33, 0.95);
+            --text-color: #a0aec0;
+            --accent-color: #00ffcc; 
+            --delete-color: #ff3366;
+            
+            --arrow-red-glow: #ff3366;
+            --arrow-white-glow: #ffffff;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            color: var(--text-color);
+        }
+
+        #control-panel {
+            width: 340px;
+            background: var(--panel-bg);
+            backdrop-filter: blur(10px);
+            border-right: 1px solid #2d3748;
+            padding: 20px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            z-index: 10;
+            overflow-y: auto;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        #control-panel.hidden {
+            transform: translateX(-100%);
+            position: absolute;
+            height: 100%;
+        }
+
+        h2 {
+            margin-top: 0;
+            font-size: 1.1rem;
+            color: #fff;
+            border-bottom: 2px solid #2d3748;
+            padding-bottom: 10px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background: #141821;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #2d3748;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.85rem;
+            color: #fff;
+            cursor: pointer;
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            accent-color: var(--accent-color);
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        .range-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            accent-color: var(--accent-color);
+            background: #2d3748;
+            height: 6px;
+            border-radius: 3px;
+            outline: none;
+        }
+
+        #points-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .point-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #141821;
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid #2d3748;
+        }
+
+        .point-label {
+            font-size: 0.75rem;
+            font-weight: bold;
+            min-width: 55px;
+        }
+
+        .coord-inputs {
+            display: flex;
+            gap: 5px;
+            flex: 1;
+        }
+
+        .coord-inputs div {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            background: #1a202c;
+            border: 1px solid #2d3748;
+            border-radius: 4px;
+            padding: 2px 6px;
+        }
+
+        .coord-inputs span {
+            font-size: 0.75rem;
+            color: #4a5568;
+            margin-right: 3px;
+        }
+
+        input[type="number"] {
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: #fff;
+            outline: none;
+            font-size: 0.85rem;
+        }
+
+        .btn {
+            background: #2d3748;
+            color: #fff;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            background: #4a5568;
+        }
+
+        .btn-add {
+            background: rgba(0, 255, 204, 0.2);
+            color: var(--accent-color);
+            border: 1px solid var(--accent-color);
+        }
+
+        .btn-add:hover {
+            background: rgba(0, 255, 204, 0.3);
+        }
+
+        .btn-del {
+            background: transparent;
+            color: var(--delete-color);
+            padding: 4px 8px;
+        }
+
+        .floating-toggle {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 100;
+            background: rgba(20, 24, 33, 0.8);
+            border: 1px solid #2d3748;
+            color: var(--accent-color);
+            padding: 10px 16px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            transition: all 0.2s;
+        }
+
+        .floating-toggle:hover {
+            background: #141821;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 10px rgba(0, 255, 204, 0.3);
+        }
+
+        #canvas-container {
+            flex: 1;
+            position: relative;
+            background: radial-gradient(circle at center, #161a23 0%, #0d0f12 100%);
+        }
+
+        canvas {
+            display: block;
+        }
+
+        .value-display {
+            font-size: 0.8rem;
+            color: var(--accent-color);
+            min-width: 45px;
+            text-align: right;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+
+    <button class="floating-toggle" id="menu-toggle-btn">◀ 隐藏控制面板</button>
+
+    <div id="control-panel">
+        <h2>流体传送带 (终极无抖版)</h2>
+        
+        <div class="control-group">
+            <label>视觉显示开关 (Show/Hide)</label>
+            <div class="checkbox-group">
+                <label class="checkbox-item">
+                    <input type="checkbox" id="switch-track" checked>
+                    <span>显示暗黑轨道</span>
+                </label>
+                <label class="checkbox-item">
+                    <input type="checkbox" id="switch-arrows" checked>
+                    <span>显示红白箭头</span>
+                </label>
+                <label class="checkbox-item">
+                    <input type="checkbox" id="switch-nodes" checked>
+                    <span>显示头尾端点</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label>线的大小 (Line Size)</label>
+            <div class="range-container">
+                <input type="range" id="lineWidth" min="20" max="80" value="40">
+                <span class="value-display" id="widthVal">40px</span>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label>箭头间距 (Spacing / Density)</label>
+            <div class="range-container">
+                <input type="range" id="arrowSpacingFactor" min="0.4" max="3.0" step="0.1" value="0.9">
+                <span class="value-display" id="spacingVal">0.9x</span>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label>流动速度 (Speed)</label>
+            <div class="range-container">
+                <input type="range" id="speed" min="0.5" max="8" step="0.1" value="2.5">
+                <span class="value-display" id="speedVal">2.5</span>
+            </div>
+        </div>
+
+        <hr style="border: none; border-top: 1px solid #2d3748; margin: 5px 0;">
+        
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <label style="color: #fff;">路径控制点配置</label>
+            <button class="btn btn-add" id="add-point-btn">+ 添加转变点</button>
+        </div>
+
+        <div id="points-list"></div>
+    </div>
+
+    <div id="canvas-container">
+        <canvas id="techCanvas"></canvas>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('techCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('canvas-container');
+        const panel = document.getElementById('control-panel');
+        const menuToggleBtn = document.getElementById('menu-toggle-btn');
+
+        const switchTrack = document.getElementById('switch-track');
+        const switchArrows = document.getElementById('switch-arrows');
+        const switchNodes = document.getElementById('switch-nodes');
+        const uiSpacingFactor = document.getElementById('arrowSpacingFactor');
+        const uiSpacingVal = document.getElementById('spacingVal');
+
+        let rawPoints = [
+            { x: 120, y: 150, label: '起点', color: '#00ffcc' },
+            { x: 380, y: 150, label: '转变点' },
+            { x: 420, y: 480, label: '转变点' },
+            { x: 750, y: 480, label: '终点', color: '#ff3366' }
+        ];
+
+        const uiLineWidth = document.getElementById('lineWidth');
+        const uiWidthVal = document.getElementById('widthVal');
+        const uiSpeed = document.getElementById('speed');
+        const uiSpeedVal = document.getElementById('speedVal');
+        const pointsListContainer = document.getElementById('points-list');
+        const addPointBtn = document.getElementById('add-point-btn');
+
+        let offset = 0;
+        let isPanelHidden = false;
+
+        menuToggleBtn.addEventListener('click', () => {
+            isPanelHidden = !isPanelHidden;
+            if (isPanelHidden) {
+                panel.classList.add('hidden');
+                menuToggleBtn.textContent = '▶ 显示控制面板';
+            } else {
+                panel.classList.remove('hidden');
+                menuToggleBtn.textContent = '◀ 隐藏控制面板';
+            }
+            setTimeout(resizeCanvas, 310);
+        });
+
+        function resizeCanvas() {
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        uiLineWidth.addEventListener('input', (e) => uiWidthVal.textContent = e.target.value + 'px');
+        uiSpeed.addEventListener('input', (e) => uiSpeedVal.textContent = parseFloat(e.target.value).toFixed(1));
+        uiSpacingFactor.addEventListener('input', (e) => uiSpacingVal.textContent = parseFloat(e.target.value).toFixed(1) + 'x');
+
+        function renderPointsUI() {
+            pointsListContainer.innerHTML = '';
+            rawPoints.forEach((pt, index) => {
+                if (index === 0) { pt.label = '起点'; pt.color = '#00ffcc'; }
+                else if (index === rawPoints.length - 1) { pt.label = '终点'; pt.color = '#ff3366'; }
+                else { pt.label = `转变点 ${index}`; pt.color = null; }
+
+                const row = document.createElement('div');
+                row.className = 'point-row';
+
+                const labelSpan = document.createElement('span');
+                labelSpan.className = 'point-label';
+                labelSpan.style.color = pt.color || 'inherit';
+                labelSpan.textContent = pt.label;
+
+                const coordDiv = document.createElement('div');
+                coordDiv.className = 'coord-inputs';
+                coordDiv.innerHTML = `
+                    <div><span>X:</span><input type="number" value="${pt.x}" data-idx="${index}" data-coord="x"></div>
+                    <div><span>Y:</span><input type="number" value="${pt.y}" data-idx="${index}" data-coord="y"></div>
+                `;
+
+                row.appendChild(labelSpan);
+                row.appendChild(coordDiv);
+
+                if (index !== 0 && index !== rawPoints.length - 1) {
+                    const delBtn = document.createElement('button');
+                    delBtn.className = 'btn btn-del';
+                    delBtn.textContent = '✕';
+                    delBtn.onclick = () => {
+                        rawPoints.splice(index, 1);
+                        renderPointsUI();
+                    };
+                    row.appendChild(delBtn);
+                }
+                pointsListContainer.appendChild(row);
+            });
+        }
+
+        pointsListContainer.addEventListener('input', (e) => {
+            if (e.target.tagName === 'INPUT') {
+                const idx = parseInt(e.target.dataset.idx);
+                const coord = e.target.dataset.coord;
+                rawPoints[idx][coord] = parseInt(e.target.value) || 0;
+            }
+        });
+
+        addPointBtn.addEventListener('click', () => {
+            const len = rawPoints.length;
+            const lastSecPt = rawPoints[len - 2];
+            const endPt = rawPoints[len - 1];
+            const newX = Math.round((lastSecPt.x + endPt.x) / 2);
+            const newY = Math.round((lastSecPt.y + endPt.y) / 2) + 40;
+            rawPoints.splice(len - 1, 0, { x: newX, y: newY });
+            renderPointsUI();
+        });
+
+        // Chaikin 基础平滑
+        function generalizeChaikin(pts, iterations = 4) {
+            if (pts.length < 3) return pts;
+            let current = pts.map(p => ({ x: p.x, y: p.y }));
+            for (let i = 0; i < iterations; i++) {
+                let next = [];
+                next.push(current[0]);
+                for (let j = 0; j < current.length - 1; j++) {
+                    let p0 = current[j]; let p1 = current[j + 1];
+                    let q = { x: 0.75 * p0.x + 0.25 * p1.x, y: 0.75 * p0.y + 0.25 * p1.y };
+                    let r = { x: 0.25 * p0.x + 0.75 * p1.x, y: 0.25 * p0.y + 0.75 * p1.y };
+                    next.push(q); next.push(r);
+                }
+                next.push(current[current.length - 1]);
+                current = next;
+            }
+            return current;
+        }
+
+        // 纯高密几何点集提取器（仅记录 X, Y 坐标）
+        function generateUniformPoints(pts, spacing = 1) {
+            if (pts.length < 2) return [];
+            let uniformPoints = [];
+            uniformPoints.push({ x: pts[0].x, y: pts[0].y });
+
+            let leftover = 0;
+            for (let i = 0; i < pts.length - 1; i++) {
+                let p1 = pts[i]; p2 = pts[i + 1];
+                let dx = p2.x - p1.x; let dy = p2.y - p1.y;
+                let len = Math.hypot(dx, dy);
+                if (len === 0) continue;
+
+                let currentPos = spacing - leftover;
+                while (currentPos <= len) {
+                    let t = currentPos / len;
+                    uniformPoints.push({
+                        x: p1.x + dx * t,
+                        y: p1.y + dy * t
+                    });
+                    currentPos += spacing;
+                }
+                leftover = len - (currentPos - spacing);
+            }
+            return uniformPoints;
+        }
+
+        // ─── 核心新增：亚像素级动态数据读取 + 角度窗口平滑滤波器 ───
+        function getSmoothPointAt(progress, path, size) {
+            let idx = Math.floor(progress);
+            if (idx < 0) idx = 0;
+            if (idx >= path.length - 1) idx = path.length - 2;
+            let frac = progress - idx;
+            
+            // 1. 坐标进行线性插值，杜绝像素对齐抖动
+            let p1 = path[idx];
+            let p2 = path[idx + 1];
+            let x = p1.x + (p2.x - p1.x) * frac;
+            let y = p1.y + (p2.y - p1.y) * frac;
+            
+            // 2. 滑动采样窗口（前后各采样半个箭头长度的距离），让角度平滑过渡
+            let windowRadius = Math.max(8, Math.round(size * 0.45));
+            let idxAhead = Math.min(idx + windowRadius, path.length - 1);
+            let idxBehind = Math.max(idx - windowRadius, 0);
+            
+            let ptAhead = path[idxAhead];
+            let ptBehind = path[idxBehind];
+            
+            // 计算全局复合切线角度
+            let angle = Math.atan2(ptAhead.y - ptBehind.y, ptAhead.x - ptBehind.x);
+            
+            return { x, y, angle };
+        }
+
+        function drawSingleArrow(x, y, angle, size, glowColor, coreColor) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle); 
+
+            ctx.beginPath();
+            ctx.moveTo(-size * 0.35, -size * 0.25);
+            ctx.lineTo(size * 0.2, 0);
+            ctx.lineTo(-size * 0.35, size * 0.25);
+            ctx.lineTo(-size * 0.1, 0); 
+            ctx.closePath();
+
+            ctx.shadowColor = glowColor; 
+            ctx.shadowBlur = 10;
+            ctx.strokeStyle = glowColor; 
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ctx.shadowBlur = 0; ctx.fillStyle = '#0d1117'; ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(-size * 0.25, -size * 0.1);
+            ctx.lineTo(size * 0.05, 0);
+            ctx.lineTo(-size * 0.25, size * 0.1);
+            ctx.strokeStyle = coreColor; 
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function drawScene() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (rawPoints.length < 2) return;
+
+            const size = parseInt(uiLineWidth.value);
+            const currentSpeed = parseFloat(uiSpeed.value);
+
+            const smoothPoints = generalizeChaikin(rawPoints, 4);
+
+            // 1. 渲染暗黑底壳
+            if (switchTrack.checked) {
+                ctx.beginPath();
+                ctx.moveTo(smoothPoints[0].x, smoothPoints[0].y);
+                for(let i = 1; i < smoothPoints.length; i++) ctx.lineTo(smoothPoints[i].x, smoothPoints[i].y);
+                ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+                ctx.strokeStyle = '#1d222e'; ctx.lineWidth = size; ctx.stroke();
+                ctx.strokeStyle = '#05070a'; ctx.lineWidth = size * 0.85; ctx.stroke();
+            }
+
+            // 2. 生成高精密无抖曲线基础集
+            const uniformPath = generateUniformPoints(smoothPoints, 1);
+            const totalPointsCount = uniformPath.length;
+
+            // 间距支持浮点数，完全解耦像素对齐限制
+            const arrowSpacingPx = size * parseFloat(uiSpacingFactor.value); 
+            offset = (offset + currentSpeed) % arrowSpacingPx;
+
+            // 3. 渲染流动箭头
+            if (switchArrows.checked && totalPointsCount > 5) {
+                const redGlow = '#ff3366';
+                const redCore = 'rgba(255, 51, 102, 0.9)';
+                const whiteGlow = '#ffffff';
+                const whiteCore = 'rgba(255, 255, 255, 0.9)';
+                
+                let arrowIndex = 0; 
+                let progress = offset; // 保持浮点精度开始递增
+
+                const fadeLength = size * 1.5;
+
+                while (progress < totalPointsCount) {
+                    // 调用高精度动态平滑计算器
+                    let targetPoint = getSmoothPointAt(progress, uniformPath, size);
+
+                    const isEven = (arrowIndex % 2 === 0);
+                    const currentGlow = isEven ? redGlow : whiteGlow;
+                    const currentCore = isEven ? redCore : whiteCore;
+
+                    // 两端平滑淡入淡出
+                    let alpha = 1;
+                    if (progress < fadeLength) {
+                        alpha = progress / fadeLength;
+                    } else if (progress > totalPointsCount - fadeLength) {
+                        alpha = (totalPointsCount - progress) / fadeLength;
+                    }
+                    alpha = Math.max(0, Math.min(1, alpha));
+
+                    ctx.save();
+                    ctx.globalAlpha = alpha;
+                    drawSingleArrow(targetPoint.x, targetPoint.y, targetPoint.angle, size, currentGlow, currentCore);
+                    ctx.restore();
+                    
+                    arrowIndex++; 
+                    progress += arrowSpacingPx; // 按浮点步长推进
+                }
+            }
+
+            // 4. 渲染两端节点
+            if (switchNodes.checked) {
+                ctx.shadowBlur = 0; ctx.lineWidth = 3;
+                const start = rawPoints[0];
+                const end = rawPoints[rawPoints.length - 1];
+                
+                ctx.beginPath(); ctx.arc(start.x, start.y, size * 0.38, 0, Math.PI * 2);
+                ctx.fillStyle = '#05070a'; ctx.strokeStyle = '#00ffcc';
+                ctx.shadowColor = '#00ffcc'; ctx.shadowBlur = 12; ctx.fill(); ctx.stroke();
+                
+                ctx.beginPath(); ctx.arc(end.x, end.y, size * 0.38, 0, Math.PI * 2);
+                ctx.fillStyle = '#05070a'; ctx.strokeStyle = '#ff3366';
+                ctx.shadowColor = '#ff3366'; ctx.shadowBlur = 12; ctx.fill(); ctx.stroke();
+            }
+
+            requestAnimationFrame(drawScene);
+        }
+
+        renderPointsUI();
+        drawScene();
+    </script>
+</body>
+</html>
